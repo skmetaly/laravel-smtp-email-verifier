@@ -1,0 +1,18 @@
+{
+    "name": "skmetaly/email-validator",
+    "description": "SMTP Email Validator. Tries to check with SMTP server if the given email addresses exists or not",
+    "license": "MIT",
+    "homepage": "http://paulbele.com",
+    "authors": [
+        {
+            "name": "Paul Bele",
+            "email": "paul@paulbele.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {
+      "php": ">=5.4.0",
+      "illuminate/config": "~5.0",
+      "illuminate/support": "~5.0"
+    }
+}
