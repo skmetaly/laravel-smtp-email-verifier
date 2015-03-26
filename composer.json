@@ -1,6 +1,6 @@
 {
-    "name": "skmetaly/email-validator",
-    "description": "Email Validator",
+    "name": "skmetaly/laravel-smtp-email-verifier",
+    "description": "Laravel SMTP Email Validator",
     "license": "MIT",
     "authors": [
         {
