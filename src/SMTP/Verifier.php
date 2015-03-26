@@ -3,19 +3,18 @@
 namespace Skmetaly\EmailVerifier\SMTP;
 
 use Exception;
-use Illuminate\Support\Str;
 use Skmetaly\EmailVerifier\Exceptions\SMTPConnectionFailed;
 use Skmetaly\EmailVerifier\Socket;
-use Skmetaly\EmailVerifier\SocketStream;
+use Skmetaly\EmailVerifier\Socket\SocketStream;
 use Skmetaly\EmailVerifier\Verifier as VerifierInterface;
 use Skmetaly\EmailVerifier\Exceptions\SMTPUnexpectedResponse;
+
 /**
  * Class Verifier
  * @package Skmetaly\EmailVerifier\SMTP
  */
 class Verifier implements VerifierInterface
 {
-
     /**
      *  String input type identifier
      */
@@ -36,10 +35,19 @@ class Verifier implements VerifierInterface
      */
     protected $socket;
 
+    /**
+     * @var override for the config
+     */
     protected $fromDomain;
 
+    /**
+     * @var override for the from name
+     */
     protected $fromName;
 
+    /**
+     *  Default constructor
+     */
     public function __construct()
     {
 
@@ -72,7 +80,7 @@ class Verifier implements VerifierInterface
 
             case self::INPUT_TYPE_STRING:
 
-                if(in_array($input,$validatedEmails)){
+                if (in_array($input, $validatedEmails)) {
 
                     return true;
                 }
@@ -111,11 +119,27 @@ class Verifier implements VerifierInterface
             $continue = true;
 
             try {
+
                 $socket = $this->getSocket($domainMxRecords);
 
                 $socket->send('HELO ' . config('email-verifier.from_domain'), SocketStream::SMTP_CONNECTION_VALID);
 
-                $socket->send('MAIL FROM:<'.$this->getFromName().'@'.$this->getFromDomain().'>',SocketStream::SMTP_CONNECTION_VALID);
+                if (config('email-verifier.tls_connection') == 'true') {
+
+                        if (config('email-verifier.tls_connection')) {
+
+                            $socket->send('EHLO '. config('email-verifier.from_domain'), SocketStream::SMTP_CONNECTION_VALID);
+
+                            $socket->send('STARTTLS', SocketStream::SMTP_CONNECTION_SUCCESS, false);
+                            
+                            $socket->enableEncryption(STREAM_CRYPTO_METHOD_TLS_CLIENT);
+                            
+                            $socket->send('EHLO ' . config('email-verifier.from_domain'), null);
+                        }
+                }
+
+                $socket->send('MAIL FROM:<' . $this->getFromName() . '@' . $this->getFromDomain() . '>',
+                    SocketStream::SMTP_CONNECTION_VALID);
 
                 /*
                  *
@@ -137,20 +161,20 @@ class Verifier implements VerifierInterface
 
                     $response = $this->testCatchAll($socket, $domain);
 
-                    if($response == false){
+                    if ($response == false) {
 
                         $continue = false;
                     }
                 }
 
+                for ($i = 0; $i < count($emails) && $continue; $i ++) {
 
-                for($i=0; $i<count($emails)&&$continue; $i++){
+                    $email = $emails[ $i ];
 
-                    $email = $emails[$i];
+                    try {
 
-                    try{
-
-                        $socket->send('NOOP ' . config('email-verifier.from_domain'), SocketStream::SMTP_CONNECTION_VALID);
+                        $socket->send('NOOP ' . config('email-verifier.from_domain'),
+                            SocketStream::SMTP_CONNECTION_VALID);
 
 
                         $socket->send('RCPT TO: <' . $email . '>',
@@ -158,9 +182,9 @@ class Verifier implements VerifierInterface
 
 
                         //  if we are here the email exists
-                        $validatedEmails[] = $email;
+                        $validatedEmails[ ] = $email;
 
-                    }catch(SMTPUnexpectedResponse $e){
+                    } catch (SMTPUnexpectedResponse $e) {
 
                         // unexpected response - we don't validate this email
                     }
@@ -295,6 +319,7 @@ class Verifier implements VerifierInterface
      * @param $domainMxRecords
      *
      * @return array
+     * @throws SMTPConnectionFailed
      */
     protected function getSocket($domainMxRecords)
     {
@@ -321,6 +346,11 @@ class Verifier implements VerifierInterface
             }
         }
 
+        if ($socket == null) {
+
+            throw new SMTPConnectionFailed();
+        }
+
         return $socket;
     }
 
@@ -339,12 +369,14 @@ class Verifier implements VerifierInterface
         $socket = null;
 
         try {
-
+            
             //  Create the socket and try to connect to the mx record
             $socket = new SocketStream($mxRecord . ':' . $port);
 
             //  Read first 3 characters of the response . This is the response code
-            $read = $socket->read(3);
+            $read = $socket->read(1024);
+            
+            $read = substr($read,0,3);
 
             if ($read == '220') {
 
@@ -375,7 +407,7 @@ class Verifier implements VerifierInterface
     {
         $fakeEmailAddress = 'catch-' . time() . '@' . $domain;
 
-        try{
+        try {
 
             $socket->send('RCPT TO: <' . $fakeEmailAddress . '>',
                 [SocketStream::SMTP_CONNECTION_VALID, SocketStream::SMTP_CONNECTION_SUCCESS]);
@@ -384,31 +416,59 @@ class Verifier implements VerifierInterface
 
             return false;
 
-        }catch(SMTPUnexpectedResponse $e){
+        } catch (SMTPUnexpectedResponse $e) {
 
             //  it means we didn't had success with an invalid email address, return true
             return true;
         }
     }
 
+    /**
+     * @return mixed
+     */
     public function getFromDomain()
     {
         return ($this->fromDomain != '' ? $this->fromDomain : config('email-verifier.from_domain'));
     }
 
+    /**
+     * @param $domain
+     */
     public function setFromDomain($domain)
     {
         $this->fromDomain = $domain;
     }
 
+    /**
+     * @return mixed
+     */
     public function getFromName()
     {
         return ($this->fromName != '' ? $this->fromName : config('email-verifier.from_name'));
     }
 
+    /**
+     * @param $domain
+     */
     public function setFromName($domain)
     {
         $this->fromDomain = $domain;
+    }
+
+    /**
+     * @param $availableProtocols
+     * @param $protocol
+     *
+     * @return bool
+     */
+    private function checkEhlo($availableProtocols, $protocol)
+    {
+        if (strpos($availableProtocols, '250-' . $protocol)) {
+
+            return true;
+        }
+
+        return false;
     }
 
 }

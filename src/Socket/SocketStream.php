@@ -1,9 +1,11 @@
 <?php
 
-namespace Skmetaly\EmailVerifier;
+namespace Skmetaly\EmailVerifier\Socket;
 
 use Skmetaly\EmailVerifier\Exceptions\SMTPConnectionFailed;
 use Skmetaly\EmailVerifier\Exceptions\SMTPUnexpectedResponse;
+use Socket\Raw\Exception;
+
 
 /**
  * Class Socket
@@ -21,37 +23,42 @@ class SocketStream
     protected $resource;
 
     /**
-     * @var connection timeout
+     * @var int
      */
     protected $timeout = 3;
 
     /**
-     * @var default length to get from resource
-     */
-    protected $defaultLength = 1000;
-
-    /**
-     * @var current response from the resource
+     * @var
      */
     protected $current_response;
 
     /**
-     *  SMTP RESPONSE CODE
+     * @var bool
+     */
+    protected $encrypted = false;
+
+    /**
+     *  SOCKET DEFAULT LENGTH
+     */
+    const SOCKET_DEFAULT_LENGTH = 1024;
+
+    /**
+     *  SOCKET RESPONSE
      */
     const SMTP_CONNECTION_SUCCESS = 220;
 
     /**
-     *  SMTP RESPONSE CODE
+     *  SOCKET RESPONSE
      */
     const SMTP_CONNECTION_VALID = 250;
 
     /**
-     *  SMTP RESPONSE CODE
+     *  SOCKET RESPONSE
      */
     const SMTP_USER_NOT_LOCAL = 251;
 
     /**
-     *  SMTP RESPONSE CODE
+     *  SOCKET RESPONSE
      */
     const SMTP_MAILBOX_UNAVAILABLE = 550;
 
@@ -105,36 +112,62 @@ class SocketStream
      * @see  self::recv() if you need to pass flags
      * @uses socket_read()
      */
-    public function read($length)
+    public function read($length = null)
     {
-        $data = @stream_get_contents($this->resource, $length);
+        if ($length == null) {
+
+            $length = self::SOCKET_DEFAULT_LENGTH;
+        }
+
+        $data = fgets($this->resource, $length);
+
+        $response = '';
+
+        while ($data) {
+
+            $response .= $data;
+
+            //  Usually this means there are more lines
+            if ($data[ 3 ] != '-') {
+
+                break;
+            }
+
+            $data = fgets($this->resource, $length);
+        }
 
         if ($data === false) {
 
             throw Exception::createFromSocketResource($this->resource);
         }
 
-        return $data;
+        return $response;
     }
 
     /**
      * Writes the contents of string to the file stream pointed by the $this->resource
      * @access private
      *
-     * @param $query
+     * @param      $query
      *
-     * @param $expectedResponseCode
+     * @param      $expectedResponseCode
+     *
+     * @param bool $debug
      *
      * @return string Returns a string of up to length - 1 bytes read from the file pointed to by handle.
      * If an error occurs, returns FALSE.
-     *
      * @throws SMTPUnexpectedResponse
      */
-    public function send($query, $expectedResponseCode = null)
+    public function send($query, $expectedResponseCode = null, $debug = false)
     {
-        stream_socket_sendto($this->resource, $query . "\r\n");
+        fputs($this->resource, $query . "\r\n", 1024);
 
-        $response = $this->getResponse();
+        $response = $this->read();
+
+        if ($debug) {
+
+            echo $response;
+        }
 
         if ($expectedResponseCode && !$this->checkResponseCode($response, $expectedResponseCode)) {
 
@@ -145,33 +178,11 @@ class SocketStream
     }
 
     /**
-     *  Close the resource
+     *  Close the socket stream
      */
-    public function close(){
-
-        fclose($this->resource);
-    }
-
-    /**
-     *  Gets the response code that was received from the socket connection
-     *
-     * @param $response
-     *
-     * @return bool
-     */
-    public function getResponseCode($response)
+    public function close()
     {
-        $code = false;
-
-        if ($response) {
-
-            preg_match('/^(?<code>[0-9]{3}) (.*)$/ims', $response, $matches);
-            $code = isset($matches[ 'code' ]) ? $matches[ 'code' ] : false;
-
-
-        }
-
-        return $code;
+        fclose($this->resource);
     }
 
     /**
@@ -189,18 +200,27 @@ class SocketStream
             $length = $this->defaultLength;
         }
 
-        $this->current_response = stream_socket_recvfrom($this->resource, $length);
+        if ($this->encrypted) {
+
+            $this->current_response = $this->read($length);
+
+        } else {
+
+            $this->current_response = $this->read($length);
+        }
 
         return $this->current_response;
     }
 
     /**
+     * Return the current response in the queue
      * @return mixed
      */
     public function getCurrentResponse()
     {
         return $this->current_response;
     }
+
     /**
      * Create a socket stream resource based on the given parameters
      *
@@ -213,7 +233,7 @@ class SocketStream
      */
     protected function create($address, $port, $transportType)
     {
-        return @stream_socket_client($transportType . "://" . $address . ":" . $port, $errno, $errstr, $this->timeout);
+        return fsockopen($address, $port, $errno, $errstr, $this->timeout);
     }
 
     /**
@@ -229,7 +249,6 @@ class SocketStream
         // test:2 => test 2
         // ::1 => ::1
         // test => test
-
         $colon = strrpos($address, ':');
 
         // there is a colon and this is the only colon or there's a closing IPv6 bracket right before it
@@ -249,6 +268,9 @@ class SocketStream
     }
 
     /**
+     *
+     * Enables the encryption for the socket
+     *
      * @param     $enc
      * @param int $type
      *
@@ -256,14 +278,19 @@ class SocketStream
      */
     public function enableEncryption($enc, $type = 1)
     {
+        $this->encrypted = true;
+
         return stream_socket_enable_crypto($this->resource, $type, $enc);
     }
 
     /**
+     * Disables the encryption for the socket
      * @return mixed
      */
     public function disableEncryption()
     {
+        $this->encrypted = false;
+
         return stream_socket_enable_crypto($this->resource, 0);
     }
 
@@ -279,6 +306,8 @@ class SocketStream
     }
 
     /**
+     * Sets the blocking parameter
+     *
      * @param $block
      *
      */
@@ -296,11 +325,33 @@ class SocketStream
      */
     protected function connected()
     {
-
         return is_resource($this->resource);
     }
 
     /**
+     *  Gets the response code that was received from the socket connection
+     *
+     * @param $response
+     *
+     * @return bool
+     */
+    public function getResponseCode($response)
+    {
+        $code = false;
+
+        if ($response) {
+
+            preg_match('/^(?<code>[0-9]{3})(.*)$/ims', $response, $matches);
+
+            $code = isset($matches[ 'code' ]) ? $matches[ 'code' ] : false;
+        }
+
+        return $code;
+    }
+
+    /**
+     * Verifies the current socket response with the expected response
+     *
      * @param $response
      * @param $expectedResponseCode
      *
