@@ -12,9 +12,6 @@
   "require": {
   },
   "autoload": {
-    "classmap": [
-      "database"
-    ],
     "psr-4": {
       "App\\": "app/",
       "Skmetaly\\EmailVerifier\\": "src"
