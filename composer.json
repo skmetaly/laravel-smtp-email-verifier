@@ -1,14 +1,23 @@
 {
-    "name": "skmetaly/laravel-smtp-email-verifier",
-    "description": "Laravel SMTP Email Validator",
-    "license": "MIT",
-    "authors": [
-        {
-            "name": "Paul Bele",
-            "email": "contact@seblaze.com"
-        }
-    ],
-    "minimum-stability": "dev",
-    "require": {
+  "name": "skmetaly/laravel-smtp-email-verifier",
+  "description": "Laravel SMTP Email Validator",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Paul Bele",
+      "email": "contact@seblaze.com"
     }
+  ],
+  "minimum-stability": "dev",
+  "require": {
+  },
+  "autoload": {
+    "classmap": [
+      "database"
+    ],
+    "psr-4": {
+      "App\\": "app/",
+      "Skmetaly\\EmailVerifier\\": "src"
+    }
+  }
 }
