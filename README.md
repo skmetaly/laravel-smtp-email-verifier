@@ -17,7 +17,7 @@ In ```aliases```
 ```
 Publish the config
 ```php
-php artisan vendor:publish --force
+php artisan vendor:publish --tag=email-verifier
 ```
 If you want the test command, register it in ```app/Console/Kernel```
 ```php
@@ -32,11 +32,11 @@ php artisan tem:email <email-address>
 ####Email Validator
 Currently you can ue ```EmaiLValidator```  with a string as an email address or an array containing email addresses
 ```php
-EmailValidator::verify('foo@bar');
+EmailVerifier::verify('foo@bar');
 ```
 Will return ```true``` if the validator was able to connect and to validate the email address 
 ```php
-EmailValidator::verify(['foo@bar','baz@bar','baz@foo');
+EmailVerifier::verify(['foo@bar','baz@bar','baz@foo');
 ```
 Will return an array with all the validated email addresses
 
