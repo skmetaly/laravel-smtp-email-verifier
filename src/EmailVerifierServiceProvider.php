@@ -17,8 +17,8 @@ class EmailVerifierServiceProvider extends ServiceProvider {
 	public function boot()
 	{
         $this->publishes([
-            __DIR__.'/Config/email-verifier.php' => config_path('email-verifier.php'),
-        ]);
+            __DIR__."/../config/email-verifier.php" => config_path('email-verifier.php'),
+        ], 'email-verifier');
     }
 
 	/**
