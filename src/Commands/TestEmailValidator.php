@@ -38,7 +38,7 @@ class TestEmailValidator extends Command
      *
      * @return mixed
      */
-    public function fire()
+    public function handle()
     {
         $isValid = EmailVerifier::verify($this->argument('email'));
 

@@ -9,5 +9,6 @@ return [
     'from_domain'=>'justimmo.ch',
     'from_name'=>'doe',
     'test_catch_all'=>true,
-    'tls_connection'=>'true'
+    'tls_connection'=>'true',
+    'socket_timeout'=>3
 ];
