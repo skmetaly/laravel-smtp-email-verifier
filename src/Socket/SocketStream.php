@@ -25,7 +25,7 @@ class SocketStream
     /**
      * @var int
      */
-    protected $timeout = 3;
+    protected $timeout;
 
     /**
      * @var
@@ -97,7 +97,7 @@ class SocketStream
             throw new SMTPConnectionFailed();
         }
 
-        $this->setTimeout($this->timeout);
+        $this->setStreamTimeout($this->getTimeout());
 
         $this->setBlocking(1);
     }
@@ -297,7 +297,7 @@ class SocketStream
     /**
      * @param $timeout
      */
-    private function setTimeout($timeout)
+    private function setStreamTimeout($timeout)
     {
         if ($this->resource) {
 
@@ -372,5 +372,21 @@ class SocketStream
         }
 
         return false;
+    }
+ 
+    /**
+     * @return int
+     */
+    public function getTimeout()
+    {
+        return ($this->timeout != '' ? $this->timeout : config('email-verifier.socket_timeout'));
+    }
+
+    /**
+     * @param $timeout
+     */
+    public function setTimeout($timeout)
+    {
+        $this->timeout = $timeout;
     }
 }
