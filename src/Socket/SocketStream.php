@@ -233,7 +233,7 @@ class SocketStream
      */
     protected function create($address, $port, $transportType)
     {
-        return fsockopen($address, $port, $errno, $errstr, $this->timeout);
+        return fsockopen($address, $port, $errno, $errstr, $this->getTimeout());
     }
 
     /**
